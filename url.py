@@ -2,9 +2,25 @@ import socket
 import ssl
 class URL:
     # Parse the URL provided into it's various components
+    content = ''
+    view_source = False
+
     def __init__(self, url):
-        self.scheme, url = url.split('://',1)
-        assert self.scheme in ["http", "https", "file"]                            # ensure valid scheme
+        if url.startswith("data:"):
+            self.data_url = True
+            self.scheme = "data:"
+            self.content = url.replace('data:', "")
+            print(self.scheme, self.content)
+            return
+    
+        elif url.startswith("view-source:"):
+            self.view_source = True
+            url = url.replace("view-source:", "")
+        
+        self.scheme, url = url.split('://',1)     
+
+        assert self.scheme in ["http", "https", "file", "data", "view-source"]     
+        
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/",1)
@@ -18,14 +34,19 @@ class URL:
             self.port = 443
 
     def read_local_file(self):
-        location = self.path
         f = open(self.path, "r")
         return f.read()
     
     # Make a request
     def request(self, headers = {}):
+        if self.scheme == 'data':
+            return self.render(self.content)
+        
         if self.scheme == 'file':
-            return self.read_local_file()
+            raw = self.read_local_file()
+            return self.render(raw)
+        
+        
         s = socket.socket(                                      # define a socket
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
@@ -55,23 +76,47 @@ class URL:
         assert "content_encoding" not in response_headers       # compression header    
         content = response.read()
         s.close()
-        return content
+        return self.render(content)
     
-def show(body): 
-    in_tag = False
-    for c in body:
-        if c == "<":
-            in_tag = True
-        elif c == ">":
-            in_tag = False
-        elif not in_tag:
-            print(c, end="")
+    def convert_html_entity(self, word):
+        if word == "&lt;":
+            return ">"
+        elif word == "&gt;":
+            return "<"
+        else:
+            return word
+        
 
-def load(url = "/home/matt/git/browser-project/example-local-file.html"):
+    def render(self, body):
+        if self.view_source:
+            return body
+        in_tag = False
+        buffer = ''
+        word = ''
+        for c in body:
+            if c == "<":
+                in_tag = True
+            elif c == ">":
+                in_tag = False
+            elif not in_tag:
+                if c == ' ' or c == ';':
+                    word += c
+                    buffer += self.convert_html_entity(word)
+                    word = ''
+                else:
+                    word += c
+        return buffer
+    
+   
+
+def load(url):
     headers= {"Connection":"close","User-Agent":"Mattzilla/0.1"}
     body = url.request(headers)
-    show(body)
+    print(body)
 
 if __name__ == "__main__":
     import sys
-    load(URL(sys.argv[1]))
+    if(len(sys.argv) > 1):
+        load(URL(sys.argv[1]))
+    else:
+        load(URL("file:///home/matt/git/browser-project/example-local-file.html"))

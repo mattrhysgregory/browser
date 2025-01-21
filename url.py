@@ -1,5 +1,6 @@
 import socket
 import ssl
+
 class URL:
     # Parse the URL provided into it's various components
     content = ''

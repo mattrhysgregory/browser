@@ -1,25 +1,43 @@
 import socket
+import ssl
 class URL:
     # Parse the URL provided into it's various components
     def __init__(self, url):
         self.scheme, url = url.split('://',1)
-        assert self.scheme == "http"                            # ensure only http requests are made
+        assert self.scheme in ["http", "https"]                            # ensure valid scheme
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/",1)
+        if ":" in self.host:
+            self.host, port = self.host.split(":", 1)
+            self.port = int(port)
         self.path = "/" + url
+        if self.scheme == "http":
+            self.port = 80
+        elif self.scheme == "https":
+            self.port = 443
 
     # Make a request
-    def request(self):
+    def request(self, headers = {}):
         s = socket.socket(                                      # define a socket
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
             proto=socket.IPPROTO_TCP
         )
-        s.connect((self.host, 80))                                # connect to that port on 80
+        if self.scheme == "https":
+            ctx = ssl.create_default_context()
+            s = ctx.wrap_socket(s, server_hostname=self.host)
+        s.connect((self.host, self.port))                                
         request = "GET {} HTTP/1.0\r\n".format(self.path)       # structure the "http 1.0" GET request {} is replaced by path
         request += "Host: {}\r\n".format(self.host)
+        if headers.values():
+            request += '\r\n'.join(['{0}: {1}'.format(key, value) for (key, value) in headers.items()])
+            request += "\r\n"
         request += "\r\n"
+        
+
+        print(request)
+
         s.send(request.encode("utf8"))
         response = s.makefile("r", encoding="utf8", newline="\r\n")
         statusline = response.readline()
@@ -47,7 +65,11 @@ def show(body):
             print(c, end="")
 
 def load(url):
-    body = url.request()
+    headers= {"Connection":"close","User-Agent":"Mattzilla/0.1"}
+    # request = "some str\r\n"
+    # request += '\r\n'.join(['{0}: {1}'.format(key, value) for (key, value) in headers.items()])
+    # print(request)
+    body = url.request(headers)
     show(body)
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ class URL:
     # Parse the URL provided into it's various components
     def __init__(self, url):
         self.scheme, url = url.split('://',1)
-        assert self.scheme in ["http", "https"]                            # ensure valid scheme
+        assert self.scheme in ["http", "https", "file"]                            # ensure valid scheme
         if "/" not in url:
             url = url + "/"
         self.host, url = url.split("/",1)
@@ -17,8 +17,15 @@ class URL:
         elif self.scheme == "https":
             self.port = 443
 
+    def read_local_file(self):
+        location = self.path
+        f = open(self.path, "r")
+        return f.read()
+    
     # Make a request
     def request(self, headers = {}):
+        if self.scheme == 'file':
+            return self.read_local_file()
         s = socket.socket(                                      # define a socket
             family=socket.AF_INET,
             type=socket.SOCK_STREAM,
@@ -34,10 +41,6 @@ class URL:
             request += '\r\n'.join(['{0}: {1}'.format(key, value) for (key, value) in headers.items()])
             request += "\r\n"
         request += "\r\n"
-        
-
-        print(request)
-
         s.send(request.encode("utf8"))
         response = s.makefile("r", encoding="utf8", newline="\r\n")
         statusline = response.readline()
@@ -64,11 +67,8 @@ def show(body):
         elif not in_tag:
             print(c, end="")
 
-def load(url):
+def load(url = "/home/matt/git/browser-project/example-local-file.html"):
     headers= {"Connection":"close","User-Agent":"Mattzilla/0.1"}
-    # request = "some str\r\n"
-    # request += '\r\n'.join(['{0}: {1}'.format(key, value) for (key, value) in headers.items()])
-    # print(request)
     body = url.request(headers)
     show(body)
 
